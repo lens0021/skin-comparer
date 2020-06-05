@@ -1,0 +1,13 @@
+{
+  "name": "skin-comparer",
+  "version": "0.0.0",
+  "description": "Comparer between MediaWiki skins",
+  "main": "index.js",
+  "repository": "http://github.com/lens0021/skin-comparer",
+  "author": "lens0021 <lorentz0021@gmail.com>",
+  "license": "GPL 3+",
+  "private": false,
+  "dependencies": {
+    "puppeteer": "^3.2.0"
+  }
+}
