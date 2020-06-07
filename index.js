@@ -1,3 +1,5 @@
+#!/usr/bin/node
+
 function appendSkinParam(url, skin) {
   if (!skin) {
     return url;
@@ -29,6 +31,17 @@ function getIterableElementList() {
   return styleMap;
 }
 
+async function getStyleMap(url) {
+  const browser = await puppeteer.launch();
+
+  const page = await browser.newPage();
+  await page.goto(url, opt);
+  const styleMap =  await page.evaluate(getIterableElementList);
+  await browser.close();
+
+  return styleMap;
+}
+
 const argv = process.argv.slice(2);
 const skinA = argv[0] || 'femiwiki';
 const skinB = argv[1] || 'femiwiki0';
@@ -37,9 +50,10 @@ console.log(`Compare ${skinA}(A) and ${skinB}(B)`);
 const puppeteer = require('puppeteer');
 
 let url = 'http://0.0.0.0/';
+// url += 'w/%EB%8C%80%EB%AC%B8'; // 페미위키:대문
 // url += 'w/%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4:%EB%8C%80%EB%AC%B8'; // 페미위키:대문
 // url += 'w/%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4'; // 페미위키
-url += 'w/Help:%EB%B3%B5%EB%B6%99%EC%9A%A9_%EB%AC%B8%EB%B2%95%ED%91%9C'; // 도움말:복붙용 문법표
+// url += 'w/Help:%EB%B3%B5%EB%B6%99%EC%9A%A9_%EB%AC%B8%EB%B2%95%ED%91%9C'; // 도움말:복붙용 문법표
 
 // url += 'index.php?title=%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4&action=edit'; // Edit
 // url += 'index.php?title=%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4&action=history'; // history
@@ -52,6 +66,8 @@ url += 'w/Help:%EB%B3%B5%EB%B6%99%EC%9A%A9_%EB%AC%B8%EB%B2%95%ED%91%9C'; // 도�
 // url += 'w/Special:RecentChanges';
 // url += 'w/페미위키?veaction=editsource';
 // url += 'w/페미위키?veaction=edit';
+// url += '/index.php?title=대문&oldid=12&unhide=1'; // .mw-warning class
+
 
 let urlA = appendSkinParam(url, skinA);
 let urlB = appendSkinParam(url, skinB);
@@ -61,15 +77,8 @@ const opt = {
 console.log(`A: ${urlA}\nB: ${urlB}`);
 
 (async () => {
-  const browser = await puppeteer.launch();
-
-  const pageA = await browser.newPage();
-  const pageB = await browser.newPage();
-  await pageA.goto(urlA, opt);
-  await pageB.goto(urlB, opt);
-
-  let styleMapA = await pageA.evaluate(getIterableElementList);
-  let styleMapB = await pageB.evaluate(getIterableElementList);
+  let styleMapA = await getStyleMap(urlA);
+  let styleMapB = await getStyleMap(urlB);
 
   for (let i = 0; i < styleMapA.length; i++) {
     // if (
@@ -103,13 +112,11 @@ console.log(`A: ${urlA}\nB: ${urlB}`);
     }
     if (
       !same &&
-      styleMapA[i].hasOwnProperty('representation') &&
-      styleMapB[i].hasOwnProperty('representation')
+      styleMapA[i] && styleMapA[i].hasOwnProperty('representation') &&
+      styleMapB[i] && styleMapB[i].hasOwnProperty('representation')
     ) {
       console.log(`element(A) is ${styleMapA[i]['representation']}`);
       console.log(`element(B) is ${styleMapB[i]['representation']}`);
     }
   }
-
-  await browser.close();
 })();
