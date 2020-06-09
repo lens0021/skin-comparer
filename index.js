@@ -1,6 +1,7 @@
 #!/usr/bin/node
 
 const puppeteer = require('puppeteer');
+const fs = require('fs');
 
 function appendSkinParam(url, skin) {
   if (!skin) {
@@ -63,8 +64,8 @@ console.log(`Compare ${skinA}(A) and ${skinB}(B)`);
 
 const url = 'http://0.0.0.0/';
 const pages = [
-  // 'w/%EB%8C%80%EB%AC%B8', // 대문
-  // 'w/%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4:%EB%8C%80%EB%AC%B8', // 페미위키:대문
+  'w/%EB%8C%80%EB%AC%B8', // 대문
+  'w/%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4:%EB%8C%80%EB%AC%B8', // 페미위키:대문
   'w/%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4', // 페미위키
   'w/Help:%EB%B3%B5%EB%B6%99%EC%9A%A9_%EB%AC%B8%EB%B2%95%ED%91%9C', // 도움말:복붙용 문법표
 
@@ -72,27 +73,27 @@ const pages = [
   'index.php?title=%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4&action=history', // History
   'index.php?title=%ED%8E%98%EB%AF%B8%EC%9C%84%ED%82%A4&action=info', // Info
 
-  // 'w/Special:%ED%8A%B9%EC%88%98%EB%AC%B8%EC%84%9C', // 특수:특수문서
-  // 'w/Special:%EA%B2%80%EC%83%89', // 특수:검색
-  // 'w/Special:%EB%B2%84%EC%A0%84', // 특수:버전
-  // 'w/Special:%ED%8E%B8%EC%A7%91%ED%95%84%ED%84%B0', //특수:편집필터
-  // 'w/Special:RecentChanges',
-  // 'w/페미위키?veaction=editsource',
-  // 'w/페미위키?veaction=edit',
-  // '/index.php?title=대문&oldid=12&unhide=1', // .mw-warning class
-  // 'w/Talk:%EB%8C%80%EB%AC%B8',
+  'w/Special:%ED%8A%B9%EC%88%98%EB%AC%B8%EC%84%9C', // 특수:특수문서
+  'w/Special:%EA%B2%80%EC%83%89', // 특수:검색
+  'w/Special:%EB%B2%84%EC%A0%84', // 특수:버전
+  'w/Special:%ED%8E%B8%EC%A7%91%ED%95%84%ED%84%B0', //특수:편집필터
+  'w/Special:RecentChanges',
+  'w/페미위키?veaction=editsource',
+  'w/페미위키?veaction=edit',
+  '/index.php?title=대문&oldid=12&unhide=1', // .mw-warning class
+  'w/Talk:%EB%8C%80%EB%AC%B8',
 ];
 
 const opt = {
   waitUntil: ['load', 'domcontentloaded', 'networkidle0'],
 };
 
-let problems = '';
 (async () => {
+  let errs = '';
+
   for (const page of pages) {
     for (const isMobile of [true, false]) {
-      let pageSame = true;
-      let pageProblem = '';
+      let pageErrs = '';
       const urlA = appendSkinParam(url + page, skinA);
       const urlB = appendSkinParam(url + page, skinB);
 
@@ -100,56 +101,62 @@ let problems = '';
       const styleMapB = await getStyleMap(urlB, isMobile);
 
       for (let i = 0; i < styleMapA.length; i++) {
-        let elementProblem = '';
-        let elementSame = true;
+        let elementErrs = '';
         for (s in styleMapA[i]) {
+          if (
+            [
+              'width',
+              'height',
+              'perspective-origin',
+              'transform-origin',
+            ].indexOf(s) >= 0
+          ) {
+            continue;
+          }
           if (i >= styleMapB.length) {
-            elementProblem += `    B does not have ${i}th element\n`;
-            elementSame = false;
+            elementErrs += `    B does not have ${i}th element\n`;
           } else if (!styleMapB[i].hasOwnProperty(s)) {
-            elementProblem += `    A's ${s} is ${styleMapA[i][s]} but B's does not have the property\n`;
-            elementSame = false;
+            elementErrs += `    A's ${s} is ${styleMapA[i][s]} but B's does not have the property\n`;
           } else if (
             styleMapA[i][s] != styleMapB[i][s] &&
             s != 'representation'
           ) {
-            elementProblem += `    A's ${s} is ${styleMapA[i][s]} but B's is ${styleMapB[i][s]}\n`;
-            elementSame = false;
+            elementErrs += `    A's ${s} is ${styleMapA[i][s]} but B's is ${styleMapB[i][s]}\n`;
           }
         }
         if (
-          !elementSame &&
+          elementErrs &&
           styleMapA[i] &&
           styleMapA[i].hasOwnProperty('representation') &&
           styleMapB[i] &&
           styleMapB[i].hasOwnProperty('representation')
         ) {
-          pageSame = false;
-
-          if (elementProblem) {
-            pageProblem +=
-              `  A[${i}]: ${styleMapA[i]['representation']}\n` +
-              `  B[${i}]: ${styleMapB[i]['representation']}\n` +
-              elementProblem;
-          }
+          pageErrs +=
+            `  A[${i}] ${styleMapA[i]['representation']}\n` +
+            `  B[${i}] ${styleMapB[i]['representation']}\n` +
+            elementErrs;
         }
       }
-      printDot(pageSame);
-      if (pageProblem) {
-        problems +=
+      printDot(!pageErrs);
+      if (pageErrs) {
+        errs +=
           `A: ${urlA}\nB: ${urlB}\n` +
-          (isMobile ? '  On mobile\n' : '') +
-          pageProblem;
+          (isMobile ? 'On mobile\n' : '') +
+          pageErrs;
       }
     }
   }
 
   process.stdout.write('\n');
 
-  if (problems) {
-    console.log('-'.repeat(80));
-    process.stdout.write(problems);
+  if (errs) {
+    fs.writeFile(__dirname + '/report.txt', errs, function (err, data) {
+      if (err) {
+        return console.log(err);
+      }
+      console.log('report file is written');
+    });
   } else {
-    console.log('OK');
+    console.log('no error');
   }
 })();
